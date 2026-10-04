@@ -4,52 +4,105 @@
 
 **Semantq Graph** is an application-level execution and representation layer for modelling semantically significant application operations as explicit, executable graphs.
 
-It sits between **application invocation** and the underlying implementation substrate, allowing an application operation to be represented independently of whether it is invoked through HTTP, a CLI, a queue, a scheduled process, another application, or an AI system.
+It is part of the broader **Semantq software development ecosystem**, centred on **Semantq, a JavaScript framework and programming language** for building applications.
 
-The central idea is simple:
+The Semantq ecosystem includes complementary frameworks, libraries, infrastructure components, and application-oriented tools spanning frontend and backend development, data interaction, communication, payments, storage, commerce, SaaS infrastructure, and application execution.
+
+Semantq Graph addresses a specific layer within this ecosystem:
 
 ```text
-                         APPLICATION
-
-                             │
-                             │
-                    ┌────────▼────────┐
-                    │     INTENT      │
-                    │                 │
-                    │  order.refund  │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │ EXECUTABLE     │
-                    │ GRAPH           │
-                    │                 │
-                    │ resolve        │
-                    │ validate       │
-                    │ authorize      │
-                    │ refund         │
-                    │ update         │
-                    │ audit          │
-                    └────────┬────────┘
-                             │
-                             ▼
-                       CAPABILITIES
-                             │
-                             ▼
-                    APPLICATION LOGIC
-                             │
-                             ▼
-                       SERVICES / DB
+Application Operation
+        │
+        ▼
+Application Intent
+        │
+        ▼
+Executable Graph
+        │
+        ▼
+Capabilities
+        │
+        ▼
+Application Execution
 ```
 
-Semantq Graph does not attempt to replace application frameworks, services, repositories, databases, workflow engines, or transport protocols.
-
-It provides a **semantic execution layer above them**.
+It is **not an AI framework** and is not limited to agentic applications. The graph model is intended to be useful for conventional deterministic applications as well as applications that introduce AI or agentic decision-making.
 
 
-## 1. The Problem
+## Table of Contents
 
-Application behaviour is normally distributed across implementation mechanisms:
+* [The Semantq Ecosystem](#the-semantq-ecosystem)
+* [What Is Semantq Graph?](#what-is-semantq-graph)
+* [The Core Idea](#the-core-idea)
+* [Where Graph Fits](#where-graph-fits)
+* [Application Intent](#application-intent)
+* [Graph Execution](#graph-execution)
+* [Transport Independence](#transport-independence)
+* [Why Use Graph Without AI?](#why-use-graph-without-ai)
+* [Graph and AI](#graph-and-ai)
+* [Relationship to semantqQL](#relationship-to-semantqql)
+* [Current Architecture](#current-architecture)
+* [Research Direction](#research-direction)
+* [Project Status](#project-status)
+* [Related Projects](#related-projects)
+
+
+## The Semantq Ecosystem
+
+Semantq Graph is one component within the wider Semantq software development ecosystem.
+
+At the centre is **Semantq**, a JavaScript framework and programming language. Around it are complementary technologies addressing different aspects of application development and operation.
+
+```text
+                         SEMANTQ SOFTWARE ECOSYSTEM
+
+┌──────────────────────────────────────────────────────────────────────┐
+│                              SEMANTQ                                 │
+│                                                                      │
+│              JavaScript framework + programming language             │
+│                                                                      │
+│     Application development • components • runtime • tooling         │
+└──────────────────────────────────┬───────────────────────────────────┘
+                                   │
+             ┌─────────────────────┼─────────────────────┐
+             │                     │                     │
+             ▼                     ▼                     ▼
+      APPLICATION               DATA &                 PLATFORM
+      COMPONENTS              INFRASTRUCTURE           SERVICES
+             │                     │                     │
+     ┌───────┼────────┐      ┌─────┼─────────┐    ┌──────┼─────────┐
+     │       │        │      │     │         │    │      │         │
+     ▼       ▼        ▼      ▼     ▼         ▼    ▼      ▼         ▼
+  Formique AnyGrid  Cartique Storage  Mail   SMS  Pylon   Pay      ...
+                    Ecommerce
+```
+
+Other ecosystem components include:
+
+```text
+@semantq/storage
+@semantq/mail
+@semantq/sms
+@semantq/pay
+@semantq/cartique
+@semantq/pylon
+Formique
+AnyGrid
+semantqQL
+@semantq/graph
+```
+
+These projects address different concerns and are not required to be used together.
+
+Semantq Graph occupies a different architectural concern from most of these components: it provides a representation and execution model for **application-level operations**.
+
+---
+
+## What Is Semantq Graph?
+
+Application frameworks already provide mechanisms for executing application behaviour.
+
+A conventional backend may execute an operation through:
 
 ```text
 HTTP
@@ -64,23 +117,15 @@ Controller
 Service
  │
  ▼
-Repository / Model
+Model
  │
  ▼
 Database
 ```
 
-An operation such as:
+The operation itself, however, may remain distributed across these implementation mechanisms.
 
-```text
-order.refund
-```
-
-may therefore exist across several controllers, services, models and external integrations.
-
-The application can execute the operation, but the operation itself may not exist as an independently inspectable computational representation.
-
-Semantq Graph explores a different model:
+Semantq Graph explores an additional representation:
 
 ```text
 Invocation
@@ -95,713 +140,474 @@ Executable Graph
 Capabilities
     │
     ▼
-Implementation
+Application Implementation
 ```
 
-The objective is to make important application operations explicit enough that the application can reason about them independently of the mechanism used to invoke them.
+The graph does **not** replace routes, controllers, services, models, repositories, or databases.
 
+It provides an application-level representation of **what operation is being performed and what that operation requires**.
 
-# 2. Application Intent
+---
 
-An **Intent** represents a meaningful application operation.
+## The Core Idea
 
-Examples:
+Consider an application operation:
+
+```text
+order.refund
+```
+
+A conventional implementation might distribute its behaviour across several services:
+
+```text
+order.refund
+     │
+     ├── resolve order
+     ├── validate refund
+     ├── authorize
+     ├── refund payment
+     ├── restore inventory
+     ├── update order
+     └── audit
+```
+
+Semantq Graph explores representing that operation explicitly:
+
+```text
+                 order.refund
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Executable Graph │
+              └────────┬────────┘
+                       │
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+      validate      authorize     refund
+                                      │
+                           ┌──────────┴──────────┐
+                           ▼                     ▼
+                       inventory              order
+                        restore               update
+                           │                     │
+                           └──────────┬──────────┘
+                                      ▼
+                                    audit
+```
+
+This creates a distinction between:
+
+```text
+WHAT
+Application Intent
+       │
+       ▼
+Executable Graph
+```
+
+and:
+
+```text
+HOW
+Capabilities
+       │
+       ▼
+Services / Models / Infrastructure
+```
+
+The research and implementation question is whether making this distinction explicit provides useful computational properties that are difficult to obtain when application semantics remain implicit within implementation code.
+
+---
+
+## Where Graph Fits
+
+Semantq Graph is **not a replacement for the Semantq framework or semantqQL**.
+
+It is an application-level abstraction that can operate across the application stack.
+
+```text
+                         SEMANTQ
+             JavaScript framework + language
+                              │
+              ┌───────────────┴────────────────┐
+              │                                │
+              ▼                                ▼
+      Application Building              Application Runtime
+              │                                │
+      ┌───────┼────────┐                       │
+      │       │        │                       │
+   Formique AnyGrid  Cartique              semantqQL
+      │       │        │                       │
+      └───────┼────────┘                       │
+              │                                │
+              └──────────────┬─────────────────┘
+                             │
+                             ▼
+                  APPLICATION IMPLEMENTATION
+                             │
+                  ┌──────────┼──────────┐
+                  │          │          │
+                Route   Controller    Service
+                                        │
+                                        ▼
+                                      Model
+                             │
+                             ▼
+                           Data
+```
+
+Graph introduces another architectural concern:
+
+```text
+                  APPLICATION INTENT
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │  SEMANTQ GRAPH  │
+                 │                 │
+                 │ Intent           │
+                 │ Graph            │
+                 │ Capabilities     │
+                 │ Execution        │
+                 └────────┬────────┘
+                          │
+                          ▼
+                 APPLICATION EXECUTION
+```
+
+Graph should therefore not be understood as merely a feature of `semantqQL`.
+
+`semantqQL` is one important application implementation substrate in which the Graph architecture can be implemented and evaluated.
+
+The Graph abstraction itself is intended to remain broader.
+
+---
+
+## Application Intent
+
+An **Intent** represents a semantically significant application operation.
+
+Examples include:
 
 ```text
 product.create
 product.update
 order.checkout
+order.refund
 order.cancel
-order.refund
 inventory.transfer
-account.close
 payment.capture
+account.close
 ```
 
-An Intent is not simply another name for a service method.
+Not every function needs to become an Intent.
 
-A service primarily represents **implementation**.
+The useful boundary is likely to be operations with meaningful application semantics, such as operations that:
 
-An Intent represents **the application operation being performed**.
+* involve multiple execution steps;
+* have dependencies;
+* require authority or policy;
+* require auditing;
+* are exposed through multiple invocation mechanisms;
+* represent important domain operations;
+* may be discovered or invoked by external systems.
 
-For example:
+The intended relationship is:
 
 ```text
-order.refund
+Application Intent
+        │
+        ▼
+     Graph
+        │
+        ▼
+   Capabilities
+        │
+        ▼
+ Implementation
 ```
 
-may resolve to:
+---
+
+## Graph Execution
+
+The current architectural target is:
 
 ```text
-order.refund
-     │
-     ├── order.resolve
-     ├── refund.validate
-     ├── refund.authorize
-     ├── payment.refund
-     ├── inventory.restore
-     ├── order.update
-     └── audit.record
+Transport
+    │
+    ▼
+Runtime
+    │
+    ▼
+GraphLoader
+    │
+    ▼
+GraphExecutor
+    │
+    ▼
+CapabilityRegistry
+    │
+    ▼
+Capabilities
+    │
+    ▼
+Services / Application Implementation
 ```
 
-The graph makes this application-level structure explicit.
+This separates invocation from graph execution and separates graph execution from application implementation.
 
+The graph therefore becomes a reusable execution representation rather than another transport mechanism.
 
-# 3. Executable Graph
+---
 
-The graph is the central representation.
+## Transport Independence
 
-A graph can express:
+Transport is deliberately separated from the graph.
 
 ```text
-Intent
-  │
-  ├── dependencies
-  ├── capabilities
-  ├── parameters
-  ├── conditions
-  ├── constraints
-  └── execution relationships
+                 ┌────────── HTTP
+                 │
+                 ├────────── CLI
+                 │
+                 ├────────── Queue
+                 │
+                 ├────────── Cron
+                 │
+                 └────────── Application / Agent
+                              │
+                              ▼
+                       Application Intent
+                              │
+                              ▼
+                         Semantq Graph
+                              │
+                              ▼
+                         Capabilities
+                              │
+                              ▼
+                       Application Services
 ```
 
-Conceptually:
+An agent is therefore **not a transport layer of Semantq Graph**.
 
-```text
-                 ┌───────────────┐
-                 │    INTENT     │
-                 │ order.refund  │
-                 └───────┬───────┘
-                         │
-                         ▼
-                    ┌─────────┐
-                    │ resolve │
-                    └────┬────┘
-                         │
-                         ▼
-                    ┌─────────┐
-                    │validate │
-                    └────┬────┘
-                         │
-                         ▼
-                   ┌───────────┐
-                   │ authorize │
-                   └─────┬─────┘
-                         │
-                ┌────────┴────────┐
-                ▼                 ▼
-           ┌─────────┐       ┌─────────┐
-           │ refund  │       │ restore │
-           └────┬────┘       └────┬────┘
-                │                 │
-                └────────┬────────┘
-                         ▼
-                     ┌────────┐
-                     │ update │
-                     └───┬────┘
-                         ▼
-                     ┌────────┐
-                     │ audit  │
-                     └────────┘
-```
+An agent is one possible caller.
 
-The graph is intended to be more than metadata.
+The caller may reach the application through HTTP, an SDK, MCP, another protocol, or another integration mechanism.
 
-It is intended to become an **executable representation of application semantics**.
+The graph remains concerned with the application operation itself.
 
+---
 
-# 4. The Execution Model
+## Why Use Graph Without AI?
 
-Semantq Graph separates invocation from execution.
+The value of explicit application graphs does not depend on AI.
 
-```text
-                 INVOCATION
-                     │
-       ┌─────────────┼─────────────┐
-       │             │             │
-      HTTP          CLI          Queue
-       │             │             │
-       └─────────────┼─────────────┘
-                     │
-                     ▼
-                 RUNTIME
-                     │
-                     ▼
-                GRAPH LOADER
-                     │
-                     ▼
-               GRAPH EXECUTOR
-                     │
-                     ▼
-             CAPABILITY REGISTRY
-                     │
-                     ▼
-                CAPABILITIES
-                     │
-                     ▼
-                 SERVICES
-```
-
-The same application operation can therefore be invoked through different mechanisms without requiring each mechanism to implement its own orchestration.
-
-The transport determines **how the request enters the application**.
-
-The graph determines **what application operation is executed**.
-
-The underlying application determines **how that operation is implemented**.
-
-
-# 5. Transport Independence
-
-Semantq Graph is not a transport layer.
-
-Transport adapters are callers of the runtime:
-
-```text
-HTTP ───────┐
-CLI ────────┤
-Queue ──────┤
-Cron ───────┼──► Runtime ──► Intent Graph
-Application ┤
-Agent ──────┘
-```
-
-This distinction is important.
-
-The graph should not need to know whether an operation originated from:
+A conventional application can use a graph to represent an important operation:
 
 ```text
 HTTP
-CLI
-queue
-cron
-another application
-human interface
-AI agent
+ │
+ ▼
+order.refund
+ │
+ ▼
+Executable Graph
+ │
+ ├── validate
+ ├── authorize
+ ├── refund
+ ├── restore
+ ├── update
+ └── audit
+ │
+ ▼
+Application Services
 ```
 
-The semantic operation remains the same.
-
-
-# 6. The Role of AI and Agents
-
-Semantq Graph is **not an agent framework** and is **not exclusively an agentic architecture**.
-
-AI is one possible caller of an application operation.
-
-This distinction is fundamental.
+Potential uses include:
 
 ```text
-                 CALLERS
-                    │
-        ┌───────────┼────────────┐
-        │           │            │
-       HTTP        CLI         AGENT
-        │           │            │
-        └───────────┼────────────┘
-                    │
-                    ▼
-             APPLICATION INTENT
-                    │
-                    ▼
-             EXECUTABLE GRAPH
-                    │
-                    ▼
-              APPLICATION
+Pre-execution validation
+        │
+        ▼
+Dependency analysis
+        │
+        ▼
+Capability resolution
+        │
+        ▼
+Policy / authority checks
+        │
+        ▼
+Deterministic execution
+        │
+        ▼
+Semantic execution tracing
 ```
 
-An agent may determine:
+This can provide value in applications where there is no AI at all.
+
+The graph therefore should not be designed around the assumption that every application will contain an agent.
+
+---
+
+## Graph and AI
+
+AI introduces an additional architectural question.
+
+An AI-enabled application can be designed in many ways:
 
 ```text
-"I want to refund order 48192."
-```
-
-The agent does not necessarily need to determine:
-
-```text
-resolve
-→ validate
-→ authorize
-→ refund
-→ restore
-→ update
-→ audit
-```
-
-Those semantics belong to the application.
-
-The intended boundary is:
-
-```text
-          PROBABILISTIC
-              AGENT
-                │
-                │ requests
-                ▼
-       ┌──────────────────┐
-       │ APPLICATION      │
-       │ INTENT           │
-       │                  │
-       │ order.refund     │
-       └────────┬─────────┘
-                │
-                ▼
-       ┌──────────────────┐
-       │ EXECUTABLE GRAPH │
-       └────────┬─────────┘
-                │
-                ▼
-          DETERMINISTIC
-          APPLICATION
-           EXECUTION
-```
-
-This is one possible use of the graph, not its defining purpose.
-
-
-# 7. AI Is Not the Same Thing as the Graph
-
-Applications can use Semantq Graph without containing any AI.
-
-For example:
-
-```text
-Traditional Application
-
-HTTP
- │
- ▼
-Intent: order.refund
- │
- ▼
-Graph
- │
- ▼
-Capabilities
- │
- ▼
-Services
-```
-
-An application may also use AI:
-
-```text
-Agent
- │
- ▼
-Intent: order.refund
- │
- ▼
-Graph
- │
- ▼
-Capabilities
- │
- ▼
-Services
-```
-
-The graph remains useful in both architectures.
-
-The difference is the caller.
-
-
-# 8. Where Agentic Architectures Fit
-
-There are several possible designs for applications that use AI.
-
-### Agent directly orchestrates capabilities
-
-```text
-AGENT
- │
- ├── resolve_order
- ├── validate_refund
- ├── authorize_refund
- ├── refund_payment
- ├── restore_inventory
- └── update_order
-```
-
-Here the agent carries significant application-specific orchestration knowledge.
-
-### Agent invokes a high-level application tool
-
-```text
-AGENT
- │
- ▼
-order.refund()
- │
- ▼
-APPLICATION
-```
-
-This already provides a strong abstraction.
-
-Semantq Graph asks a further question:
-
-```text
-AGENT
- │
- ▼
-APPLICATION INTENT
- │
- ▼
-EXECUTABLE REPRESENTATION
- │
- ├── analysis
- ├── policy
- ├── capability resolution
- ├── governance
- └── execution
-```
-
-The research problem is to determine whether this additional representation provides meaningful benefits over simply exposing high-level tools.
-
-There is therefore no assumption that every AI architecture needs Semantq Graph.
-
-The objective is to identify **where the abstraction provides genuine value**.
-
-
-# 9. MCP and Other Agent Interfaces
-
-Semantq Graph does not compete with protocols such as MCP.
-
-They operate at different levels.
-
-```text
-AI AGENT
-    │
-    │ MCP / API / other interface
-    ▼
-APPLICATION INTENT
-    │
-    ▼
-EXECUTABLE GRAPH
-    │
-    ▼
-CAPABILITIES
-    │
-    ▼
-IMPLEMENTATION
-```
-
-An Intent representation could potentially become the source from which agent-facing tools and schemas are generated.
-
-For example:
-
-```text
-Intent Definition
+AI as Interface
        │
-       ├────────► API operation
-       ├────────► MCP tool
-       ├────────► CLI command
-       └────────► internal invocation
+       ▼
+Application
 ```
 
-Whether this provides practical advantages is an open implementation and research question.
-
-
-# 10. Capability Model
-
-Graph nodes resolve to capabilities rather than directly embedding application services.
-
-Conceptually:
-
 ```text
-INTENT
-   │
-   ▼
-CAPABILITY
-   │
-   ▼
-IMPLEMENTATION
+Application
+       │
+       ▼
+AI-assisted Capability
 ```
 
-A capability may eventually carry information such as:
-
 ```text
-identity
-input contract
-output contract
-authority
-dependencies
-constraints
-version
-implementation binding
+AI Agent
+       │
+       ▼
+Application Tools
+       │
+       ▼
+Application
 ```
 
-For example:
+Or:
 
 ```text
-inventory.reserve
-
-input:
-  sku
-  quantity
-  order_id
-
-authority:
-  inventory.write
-
-binding:
-  InventoryService.reserve
+AI Agent
+       │
+       ▼
+Application Intent
+       │
+       ▼
+Semantq Graph
+       │
+       ▼
+Application Execution
 ```
 
-This allows the graph to depend on an application-level capability rather than a particular implementation.
+Semantq Graph does not prescribe one of these architectures.
 
-The precise capability contract and binding model remain areas for development.
+The question being explored is where an explicit application-intent representation provides the greatest value.
 
-
-# 11. Potential Graph Analysis
-
-Because the operation is represented explicitly, the runtime can potentially inspect the graph before execution.
+One possible boundary is:
 
 ```text
-                 GRAPH
+             PROBABILISTIC
+                PLANNING
                    │
-        ┌──────────┼──────────┐
-        ▼          ▼          ▼
-   VALIDATION   ANALYSIS    POLICY
-        │          │          │
-        └──────────┼──────────┘
                    ▼
-             EXECUTION
+          ┌──────────────────┐
+          │ Application      │
+          │ Intent           │
+          └────────┬─────────┘
+                   │
+                   ▼
+          ┌──────────────────┐
+          │ Executable Graph │
+          └────────┬─────────┘
+                   │
+                   ▼
+             DETERMINISTIC
+              EXECUTION
 ```
 
-Potential analysis includes:
+The agent determines **which application operation it wants**.
+
+The application determines **what that operation means and how it executes**.
+
+Whether this provides measurable advantages over high-level tools, MCP interfaces, workflow systems, or other agent architectures remains an open question.
+
+---
+
+## Relationship to semantqQL
+
+`semantqQL` is the Node.js backend framework within the Semantq ecosystem.
+
+It provides the application implementation substrate through which application routes, controllers, services, models, and related backend mechanisms can be organised and executed.
 
 ```text
-capability existence
-dependency validity
-cycle detection
-parameter resolution
-contract compatibility
-authority requirements
-policy constraints
-version compatibility
+Semantq
+   │
+   ▼
+semantqQL
+   │
+   ▼
+Application
+   │
+   ├── Routes
+   ├── Controllers
+   ├── Services
+   ├── Models
+   └── Data
 ```
 
-The important distinction is that these are **potential computational properties of the representation**, not claims that the current implementation already provides all of them.
-
-
-# 12. Intent as an Intermediate Representation
-
-Semantq Graph explores whether an application Intent can function as an intermediate representation:
+Semantq Graph can operate above this implementation substrate:
 
 ```text
-DECLARATION
-     │
-     ▼
-CANONICAL INTENT
-     │
-     ▼
-EXECUTABLE GRAPH
-     │
-     ▼
-RESOLVED GRAPH
-     │
-     ▼
-EXECUTION
+Application Intent
+       │
+       ▼
+Semantq Graph
+       │
+       ▼
+Capabilities
+       │
+       ▼
+semantqQL / Application Services
+       │
+       ▼
+Models / Data / Infrastructure
 ```
 
-For the representation to warrant the term **IR** in a stronger compiler-theoretic sense, it would need to demonstrate meaningful properties such as:
+This relationship allows the graph architecture to be evaluated using a real application framework without making the graph abstraction conceptually dependent on that framework.
+
+---
+
+## Current Architecture
+
+The repository currently separates the major concerns into:
 
 ```text
-representation
-analysis
-transformation
-canonicalisation
-binding
-lowering
-```
-
-This remains an open research question.
-
-If the representation proves to be better understood as an:
-
-```text
-Application Intent Representation
-Operation Graph
-Executable Application Specification
-Workflow abstraction
-```
-
-then the terminology should follow the evidence.
-
-
-# 13. Relationship to RCSM / MCSR
-
-Semantq Graph does not replace the application's existing implementation architecture.
-
-A typical application substrate can remain:
-
-```text
-ROUTE
-  │
-  ▼
-CONTROLLER
-  │
-  ▼
-SERVICE
-  │
-  ▼
-MODEL / REPOSITORY
-  │
-  ▼
-DATABASE
-```
-
-Semantq Graph introduces a semantic layer above that substrate:
-
-```text
-                 INTENT
-                    │
-                    ▼
-              EXECUTABLE GRAPH
-                    │
-                    ▼
-              CAPABILITIES
-                    │
-                    ▼
-        ┌──────────────────────┐
-        │ APPLICATION SUBSTRATE│
-        │                      │
-        │ Route                │
-        │ Controller           │
-        │ Service              │
-        │ Model / Repository   │
-        └──────────────────────┘
-```
-
-The graph answers:
-
-> What application operation is being performed?
-
-The implementation substrate answers:
-
-> How is that operation performed?
-
-
-# 14. Where Semantq Graph May Be Valuable
-
-The graph is most relevant where an operation has meaningful application semantics.
-
-Examples include:
-
-```text
-order.refund
-order.checkout
-inventory.transfer
-account.close
-payment.capture
-subscription.cancel
-product.publish
-resident.admit
-care.plan.generate
-```
-
-These operations often involve:
-
-```text
-multiple steps
-dependencies
-authority
-policies
-external systems
-audit requirements
-multiple callers
-meaningful state transitions
-```
-
-Simple operations may not need an Intent graph.
-
-The architecture therefore does not imply:
-
-```text
-EVERY FUNCTION → GRAPH
-```
-
-Instead:
-
-```text
-APPLICATION
-
-simple operations ─────► conventional implementation
-
-semantic operations ───► Intent Graph
-```
-
-The appropriate boundary is itself an architectural consideration.
-
-
-
-# 15. The Cost of an Explicit Representation
-
-An additional representation introduces additional engineering responsibility.
-
-The principal risk is **representation drift**:
-
-```text
-       INTENT GRAPH
-            │
-            │
-            X
-            │
-            ▼
-       IMPLEMENTATION
-
-       implementation changes
-       graph remains unchanged
-```
-
-This creates questions around:
-
-```text
-contract testing
-versioning
-implementation verification
-generation
-introspection
-binding validation
-```
-
-A successful architecture therefore needs to demonstrate that the value of explicit representation exceeds its maintenance cost.
-
-
-# 16. Semantq Graph Architecture
-
-The current project is organised around a separation between core execution infrastructure, platform capabilities, application services and invocation transports.
-
-```text
-semantq-graph
+graph/
 │
-├── core
-│   ├── graph
-│   ├── runtime
-│   ├── registry
-│   ├── resource
-│   └── execution
+├── core/
+│   ├── execution/
+│   ├── graph/
+│   ├── registry/
+│   ├── resource/
+│   └── runtime/
 │
-├── platform
-│   ├── capabilities
-│   ├── consumers
-│   ├── renderers
-│   ├── adapters
-│   └── bootstrap
+├── platform/
+│   ├── capabilities/
+│   ├── consumers/
+│   ├── adapters/
+│   ├── renderers/
+│   └── bootstrap/
 │
-├── services
+├── transport/
+│   ├── http/
+│   ├── cli/
+│   ├── queue/
+│   └── cron/
 │
-├── transport
-│   ├── http
-│   ├── cli
-│   ├── queue
-│   └── cron
+├── services/
 │
-└── contracts
+└── contracts/
 ```
 
-The intended dependency direction is:
+The intended separation is:
 
 ```text
 TRANSPORT
@@ -813,209 +619,149 @@ RUNTIME
 GRAPH
     │
     ▼
-CAPABILITY REGISTRY
-    │
-    ▼
 CAPABILITIES
     │
     ▼
-SERVICES
+APPLICATION SERVICES
 ```
 
-Transport and agent interfaces remain outside the graph's core execution semantics.
+Transport should not contain application orchestration.
 
+Graph should not become another transport mechanism.
 
-# 17. Design Boundary
+Services remain responsible for implementation.
 
-Semantq Graph is deliberately not:
+Capabilities provide the executable binding between the graph and application behaviour.
+
+---
+
+## Research Direction
+
+Semantq Graph is both a software architecture project and an experimental research artifact.
+
+The central question is whether **reifying semantically significant application operations as explicit executable representations** provides useful computational properties beyond conventional application architectures.
+
+Areas under investigation include:
 
 ```text
-an AI agent
-an LLM framework
-an MCP implementation
-a workflow engine
-a replacement for application frameworks
-a replacement for services or repositories
-a transport protocol
+Intent Declaration
+        │
+        ▼
+Canonical Representation
+        │
+        ▼
+Static Analysis
+        │
+        ▼
+Capability Resolution
+        │
+        ▼
+Policy / Authority Evaluation
+        │
+        ▼
+Execution
+        │
+        ▼
+Semantic Tracing
 ```
 
-It is an experimental architecture for:
+The investigation also considers the relationship between application Intent representations and:
+
+* intermediate representations;
+* workflow engines;
+* capability-based architectures;
+* policy systems;
+* tool protocols;
+* MCP;
+* agentic architectures;
+* conventional application frameworks.
+
+The eventual classification of the representation remains open.
+
+It may prove to be:
 
 ```text
-representing
-      ↓
-resolving
-      ↓
-analysing
-      ↓
-executing
-      ↓
-tracing
-
-application-level operations
+Intermediate Representation
+        OR
+Application Intent Representation
+        OR
+Executable Application Specification
+        OR
+Specialised Workflow Representation
 ```
 
+Determining where the abstraction belongs is part of the research.
 
-# 18. Current Architectural Direction
+For the deeper conceptual and research treatment, see:
 
-The current implementation is being developed around the following pipeline:
+* [`Concept.md`](Concept.md)
+* [`FBSD.md`](FBSD.md)
+* [`AgenticDecisionLayer.md`](AgenticDecisionLayer.md)
+
+---
+
+## Project Status
+
+Semantq Graph is an evolving experimental implementation.
+
+The current repository establishes the architectural direction and execution foundation. Further work will formalise and evaluate:
 
 ```text
-                    INVOCATION
-                        │
-          ┌─────────────┼─────────────┐
-          │             │             │
-         HTTP          CLI          Queue
-          │             │             │
-          └─────────────┼─────────────┘
-                        │
-                        ▼
-                     RUNTIME
-                        │
-                        ▼
-                   GRAPH LOADER
-                        │
-                        ▼
-                  GRAPH EXECUTOR
-                        │
-                        ▼
-               CAPABILITY REGISTRY
-                        │
-                        ▼
-                   CAPABILITIES
-                        │
-                        ▼
-                    SERVICES
+Intent
+  │
+  ▼
+Graph
+  │
+  ▼
+Analysis
+  │
+  ▼
+Capability Resolution
+  │
+  ▼
+Execution
 ```
 
-An agentic caller can enter the same boundary:
+The objective is not simply to demonstrate that a graph can execute.
 
-```text
-                     AGENT
-                       │
-                       ▼
-               APPLICATION INTENT
-                       │
-                       ▼
-               EXECUTABLE GRAPH
-                       │
-                       ▼
-                  CAPABILITIES
-                       │
-                       ▼
-                   SERVICES
-```
+The objective is to determine **what additional computational and architectural value is created when application intent becomes an explicit executable representation**.
 
-The graph therefore remains an **application architecture**, not an AI-specific architecture.
+---
 
+## Related Projects
 
-# 19. Research Direction
+### Semantq
 
-The project is also a research artefact for investigating whether explicit application Intent provides computational advantages over conventional implementation structures.
+The core **JavaScript framework and programming language** within the ecosystem.
 
-The major questions include:
+https://github.com/Gugulethu-Nyoni/semantq
 
-```text
-Can application operations be represented canonically?
+### semantqQL
 
-Can the representation be analysed before execution?
+The Node.js backend framework providing an application implementation substrate for Semantq applications.
 
-Can capabilities be resolved independently of transport?
+https://github.com/Gugulethu-Nyoni/semantqQL
 
-Can authority and policy be evaluated against the graph?
+### Formique
 
-Can execution be traced at the application-semantic level?
+A JavaScript form-building system within the Semantq ecosystem.
 
-Can the representation reduce application-specific orchestration
-required from AI agents?
+https://github.com/Gugulethu-Nyoni/formique
 
-Can representation drift be detected?
+### AnyGrid
 
-Does the model provide sufficient value to justify its maintenance cost?
-```
+A reusable JavaScript data-grid and data-interaction component within the Semantq ecosystem.
 
-The project does not assume the answers.
+https://github.com/Gugulethu-Nyoni/anygrid
 
-The implementation is intended to make those questions testable.
+### Semantq Graph
 
+Application intent representation and graph-based execution.
 
-# 20. Design Principle
+https://github.com/Gugulethu-Nyoni/semantq-graph
 
-The core architectural principle can be summarised as:
+---
 
-```text
-                  CALLER
-                    │
-                    │ requests
-                    ▼
-             APPLICATION INTENT
-                    │
-                    │ defines
-                    ▼
-             EXECUTABLE GRAPH
-                    │
-                    │ resolves
-                    ▼
-               CAPABILITIES
-                    │
-                    │ bind to
-                    ▼
-             IMPLEMENTATION
-```
+## Licence
 
-Different callers may change.
-
-The application's semantic operation should not have to change with them.
-
-```text
-HTTP ──────┐
-CLI ───────┤
-Queue ─────┤
-Cron ──────┼──► Intent ──► Graph ──► Application
-Agent ─────┤
-Internal ──┘
-```
-
-This is the architectural proposition at the centre of Semantq Graph:
-
-> **Represent important application operations explicitly, so that the application can reason about what it is executing independently of how the operation was invoked.**
-
-The role of AI is one important application of this boundary — particularly where probabilistic agents interact with deterministic application semantics — but the graph itself is intended to remain useful for applications with no AI involvement at all.
-
-
-## Status
-
-Semantq Graph is an experimental architecture and research implementation.
-
-The repository is being developed incrementally to establish:
-
-```text
-Intent representation
-        ↓
-Graph loading
-        ↓
-Graph validation
-        ↓
-Capability resolution
-        ↓
-Graph execution
-        ↓
-Application integration
-```
-
-Further work will determine how far the model should extend into:
-
-```text
-static analysis
-canonicalisation
-contracts
-policy evaluation
-authority
-versioning
-lowering
-drift detection
-agent interfaces
-MCP integration
-```
-
-The accompanying research work examines these questions in greater depth.
+See [`LICENSE`](LICENSE) for licensing information.
