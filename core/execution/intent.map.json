@@ -1,0 +1,240 @@
+{
+  "post.detail": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "post.resolve",
+        "params": {
+          "slug": "{{post.slug}}"
+        },
+        "dependencies": []
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{resolve.result}}"
+        },
+        "dependencies": ["resolve"]
+      }
+    }
+  },
+  "post.email": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "post.resolve",
+        "params": {
+          "slug": "{{post.slug}}"
+        },
+        "dependencies": []
+      },
+      "render": {
+        "capability": "email.render",
+        "dependencies": ["resolve"]
+      },
+      "send": {
+        "capability": "mail.send",
+        "dependencies": ["render"]
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{send.result}}"
+        },
+        "dependencies": ["send"]
+      }
+    }
+  },
+  "subscriber.join": {
+    "entry": "complete",
+    "nodes": {
+      "find": {
+        "capability": "subscriber.find",
+        "params": {
+          "email": "{{email}}"
+        },
+        "dependencies": []
+      },
+      "create": {
+        "capability": "subscriber.create",
+        "params": {
+          "email": "{{email}}",
+          "name": "{{name}}",
+          "publication_id": "{{publication_id}}"
+        },
+        "dependencies": ["find"],
+        "condition": "!find.result"
+      },
+      "send_verification": {
+        "capability": "mail.send",
+        "params": {
+          "template": "verification",
+          "to": "{{email}}"
+        },
+        "dependencies": ["create"],
+        "condition": "create.result"
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{send_verification.result}}"
+        },
+        "dependencies": ["send_verification"]
+      }
+    }
+  },
+  "subscriber.confirm": {
+    "entry": "complete",
+    "nodes": {
+      "verify": {
+        "capability": "subscriber.verify",
+        "params": {
+          "token": "{{token}}"
+        },
+        "dependencies": []
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{verify.result}}"
+        },
+        "dependencies": ["verify"]
+      }
+    }
+  },
+  "delivery.send": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "delivery.resolve",
+        "params": {
+          "id": "{{id}}"
+        },
+        "dependencies": []
+      },
+      "send": {
+        "capability": "delivery.send",
+        "params": {
+          "delivery": "{{resolve.result}}"
+        },
+        "dependencies": ["resolve"]
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{send.result}}"
+        },
+        "dependencies": ["send"]
+      }
+    }
+  },
+  "post.published": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "post.resolve",
+        "params": {
+          "slug": "{{post.slug}}"
+        },
+        "dependencies": []
+      },
+      "audience": {
+        "capability": "audience.resolve",
+        "params": {
+          "post": "{{resolve.result}}"
+        },
+        "dependencies": ["resolve"]
+      },
+      "newsletter": {
+        "capability": "newsletter.send",
+        "params": {
+          "post": "{{resolve.result}}",
+          "subscribers": "{{audience.result}}"
+        },
+        "dependencies": ["resolve", "audience"]
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{newsletter.result}}"
+        },
+        "dependencies": ["newsletter"]
+      }
+    }
+  },
+  "post.publish": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "post.resolve",
+        "params": {
+          "slug": "{{post.slug}}"
+        },
+        "dependencies": []
+      },
+      "publish": {
+        "capability": "post.publish",
+        "params": {
+          "post": "{{resolve.result}}"
+        },
+        "dependencies": ["resolve"]
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{publish.result}}"
+        },
+        "dependencies": ["publish"]
+      }
+    }
+  },
+  "post.preview": {
+    "entry": "complete",
+    "nodes": {
+      "resolve": {
+        "capability": "post.resolve",
+        "params": {
+          "slug": "{{slug}}"
+        },
+        "dependencies": []
+      },
+      "render": {
+        "capability": "ssr.render",
+        "params": {
+          "post": "{{resolve.result}}"
+        },
+        "dependencies": ["resolve"]
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{render.result}}"
+        },
+        "dependencies": ["render"]
+      }
+    }
+  },
+  "activity.execute": {
+    "entry": "complete",
+    "nodes": {
+      "execute": {
+        "capability": "activity.execute",
+        "params": {
+          "activityType": "{{activityType}}",
+          "resourceUri": "{{resourceUri}}",
+          "targetUri": "{{targetUri}}",
+          "value": "{{value}}",
+          "metadata": "{{metadata}}"
+        },
+        "deps": []
+      },
+      "complete": {
+        "capability": "flow.complete",
+        "params": {
+          "result": "{{execute.result}}"
+        },
+        "deps": ["execute"]
+      }
+    }
+  }
+}
