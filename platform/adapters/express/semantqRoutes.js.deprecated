@@ -1,0 +1,40 @@
+/**
+ * Semantq Routes - Express Adapter
+ * 
+ * HTTP adapter for the Semantq runtime.
+ */
+
+export function semantqRoutes(app, runtime, consumer) {
+  app.get('/blog/:slug', async (req, res) => {
+    try {
+      const { slug } = req.params;
+
+      // Get actor (user/subscriber) from session
+      const actor = {
+        user: req.user || null,
+        subscriber: req.user?.subscriber || null
+      };
+
+      console.log('[SSR] Slug:', slug);
+      console.log('[SSR] User authenticated:', !!req.user);
+
+      const manifest = await runtime.execute(
+        'post.detail',
+        { slug },
+        { 
+          req, 
+          res,
+          actor 
+        }
+      );
+
+      const html = consumer.render(manifest);
+      res.type('html').send(html);
+    } catch (err) {
+      console.error('Semantq SSR Error:', err.message);
+      res.status(404).send(`<h1>Not Found</h1><p>${err.message}</p>`);
+    }
+  });
+
+  console.log('✅ Semantq routes mounted at /blog/:slug');
+}
