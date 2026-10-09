@@ -1,6 +1,6 @@
 # Semantq Graph
 
-## Reifying Application Intent as Executable Graphs
+## Reifying Application Intent as Executable Graphs (Project)
 
 **Semantq Graph** is an application-level execution and representation layer for modelling semantically significant application operations as explicit, executable graphs.
 
